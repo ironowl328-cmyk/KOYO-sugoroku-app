@@ -228,6 +228,34 @@
       background-color: #28a745;
     }
 
+    /* ルール・部活効果一覧ボックス（常時表示用） */
+    .club-info-box {
+      background-color: #fff8e1;
+      border: 1px solid #ffe082;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .club-info-box h4 {
+      margin: 0 0 8px 0;
+      font-size: 1rem;
+      color: #b78103;
+      border-bottom: 1px dashed #ffe082;
+      padding-bottom: 4px;
+    }
+    .club-info-list {
+      margin: 0;
+      padding-left: 20px;
+    }
+    .club-info-list li {
+      font-size: 0.85rem;
+      font-weight: normal;
+      padding: 3px 0;
+      border-bottom: none;
+    }
+
     /* サイコロエリア */
     .dice-area {
       text-align: center;
@@ -452,6 +480,22 @@
         <span id="dicePlayerName" style="color: #007bff;"></span> さんの番（<span id="dicePlayerClub" style="color: #555;">未所属</span>）
       </div>
 
+      <!-- 各部活の効果・各種アクション説明一覧（常時表示） -->
+      <div class="club-info-box">
+        <h4>📌 部活効果・各種ルールの説明</h4>
+        <ul class="club-info-list">
+          <li><strong>サッカー部:</strong> 出目が「1」のとき、追加で2マス進む</li>
+          <li><strong>野球部:</strong> 出目が「6」のとき、追加で2マス進む</li>
+          <li><strong>ワンゲル部:</strong> 出目が「3」または「4」のとき、追加で1マス進む</li>
+          <li><strong>管弦楽・軽音楽部・ジャズオケ部:</strong> 偶数の目のとき、好感度+5</li>
+          <li><strong>合唱部:</strong> ターン数に応じた好感度・学力が毎ターン上昇（ゴール時好感度50以下なら学力+50）</li>
+          <li><strong>クイズ研究会:</strong> 最初から学力+10。サイコロ後に超難問クイズが発生</li>
+          <li><strong>退部ボタン:</strong> 所属している部活を辞め「未所属（退部済）」になり、以降の部活効果が消える</li>
+          <li><strong>留年ボタン:</strong> 好感度ポイントの最大上限が25下がるペナルティ</li>
+          <li><strong>ゴール着順ボーナス:</strong> 1位ゴール(+50pt)、2位ゴール(+30pt)、3位ゴール(+10pt)が最終学力に加算</li>
+        </ul>
+      </div>
+
       <!-- パラメーター表示領域 -->
       <div class="status-container">
         <!-- 好感度ポイント -->
@@ -542,4 +586,494 @@
       { q: "19世紀末に国際単位系で『メートル』の定義に用いられた『メートル原器』の材質は？", options: ["白金・イリジウム合金", "チタン・アルミニウム合金", "タングステン銅", "炭素鋼"], answer: 0 },
       { q: "元素周期表において、唯一人名でも地名でもなく『神話の神』に直接由来しない名の人工元素は？", options: ["プロメチウム", "チタン", "ニホニウム", "テクネチウム"], answer: 3 },
       { q: "ポーカー（52枚）で、ロイヤルストレートフラッシュが出る確率は約何%？", options: ["0.01%", "0.001%", "0.00015%", "0.000015%"], answer: 2 },
-      { q: "1648年に締結され、近代国家システムの原点とされる条約は？", options: ["ユトレヒト条約
+      { q: "1648年に締結され、近代国家システムの原点とされる条約は？", options: ["ユトレヒト条約", "ヴェストファーレン条約", "ヴェルサイユ条約", "ウィーン条約"], answer: 1 },
+      { q: "DNAの二重らせん構造の発見において、X線回折写真『Photo 51』を撮影した女性研究者は？", options: ["ロザリンド・フランクリン", "マリー・キュリー", "バーバラ・マクリントック", "リゼ・マイトナー"], answer: 0 },
+      { q: "世界で最も深い海溝である『マリアナ海溝』の最深部『チャレンジャー海淵』の深さは約何メートル？", options: ["約8,848m", "約10,920m", "約12,260m", "約14,000m"], answer: 1 }
+    ];
+
+    const players = []; 
+    let currentStepIndex = 0;
+    let playerTurnIndex = 0;
+    let globalTurnCount = 1;
+    let isRolling = false;
+    let goalCounter = 0;
+
+    const MAX_PLAYERS = 6;
+    const MIN_PLAYERS = 2;
+
+    // DOM要素
+    const step1 = document.getElementById('step1');
+    const inputPlayer = document.getElementById('playerName');
+    const addBtn = document.getElementById('addBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const startBtn = document.getElementById('startBtn');
+    const message1 = document.getElementById('message1');
+    const list = document.getElementById('playerList');
+
+    const step2 = document.getElementById('step2');
+    const targetPlayerName = document.getElementById('targetPlayerName');
+    const clubOptionsContainer = document.getElementById('clubOptionsContainer');
+    const nextClubBtn = document.getElementById('nextClubBtn');
+    const message2 = document.getElementById('message2');
+
+    const step3 = document.getElementById('step3');
+    const globalTurnBadge = document.getElementById('globalTurnBadge');
+    const dicePlayerName = document.getElementById('dicePlayerName');
+    const dicePlayerClub = document.getElementById('dicePlayerClub');
+    const affectionVal = document.getElementById('affectionVal');
+    const affectionBar = document.getElementById('affectionBar');
+    const studyVal = document.getElementById('studyVal');
+    const studyBar = document.getElementById('studyBar');
+    const diceBox = document.getElementById('diceBox');
+    const rollBtn = document.getElementById('rollBtn');
+    const goalBtn = document.getElementById('goalBtn');
+    const leaveClubBtn = document.getElementById('leaveClubBtn');
+    const repeatBtn = document.getElementById('repeatBtn');
+    const endTurnBtn = document.getElementById('endTurnBtn');
+    const diceResultMsg = document.getElementById('diceResultMsg');
+    const resultList = document.getElementById('resultList');
+    const restartBtn = document.getElementById('restartBtn');
+
+    const affectionPlusBtn = document.getElementById('affectionPlusBtn');
+    const affectionMinusBtn = document.getElementById('affectionMinusBtn');
+    const studyPlusBtn = document.getElementById('studyPlusBtn');
+    const studyMinusBtn = document.getElementById('studyMinusBtn');
+
+    const quizModal = document.getElementById('quizModal');
+    const quizQuestionText = document.getElementById('quizQuestionText');
+    const quizOptionsContainer = document.getElementById('quizOptionsContainer');
+
+    const resultModal = document.getElementById('resultModal');
+    const winnerNameText = document.getElementById('winnerNameText');
+    const finalScoreList = document.getElementById('finalScoreList');
+    const closeResultBtn = document.getElementById('closeResultBtn');
+
+    // --- STEP 1: プレイヤー登録 ---
+    addBtn.addEventListener('click', handleAddPlayer);
+    inputPlayer.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleAddPlayer();
+    });
+
+    resetBtn.addEventListener('click', () => {
+      players.length = 0;
+      goalCounter = 0;
+      inputPlayer.value = '';
+      message1.textContent = '';
+      renderList();
+    });
+
+    startBtn.addEventListener('click', () => {
+      if (players.length >= MIN_PLAYERS && players.length <= MAX_PLAYERS) {
+        step1.classList.add('hidden');
+        step3.classList.remove('hidden');
+        playerTurnIndex = 0;
+        globalTurnCount = 1;
+        goalCounter = 0;
+        updateDiceTurnView();
+        renderResultList();
+      }
+    });
+
+    function handleAddPlayer() {
+      const name = inputPlayer.value.trim();
+      message1.textContent = '';
+
+      if (players.length >= MAX_PLAYERS) {
+        message1.textContent = 'プレイヤーは最大6人までです。';
+        return;
+      }
+      if (name === '') {
+        message1.textContent = '名前を入力してください。';
+        return;
+      }
+
+      players.push({ 
+        name: name, 
+        club: '未所属', 
+        affection: 0, 
+        maxAffection: 100, 
+        study: 0, 
+        isGoal: false,
+        goalRank: 0
+      });
+      inputPlayer.value = '';
+      renderList();
+
+      if (players.length < MIN_PLAYERS) {
+        message1.textContent = `あと ${MIN_PLAYERS - players.length} 人以上の入力が必要です。`;
+      }
+    }
+
+    function renderList() {
+      list.innerHTML = '';
+      players.forEach((p) => {
+        const li = document.createElement('li');
+        li.textContent = p.name;
+        list.appendChild(li);
+      });
+      startBtn.disabled = players.length < MIN_PLAYERS || players.length > MAX_PLAYERS;
+    }
+
+    // --- STEP 2: 部活選択 ---
+    nextClubBtn.addEventListener('click', handleAddClub);
+
+    function startClubSelection() {
+      step3.classList.add('hidden');
+      step2.classList.remove('hidden');
+      currentStepIndex = 0;
+      showClubInputForm();
+    }
+
+    function showClubInputForm() {
+      targetPlayerName.textContent = players[currentStepIndex].name;
+      message2.textContent = '';
+      
+      clubOptionsContainer.innerHTML = '';
+      clubChoices.forEach((club, index) => {
+        const label = document.createElement('label');
+        label.className = 'club-option-label';
+        
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = 'clubOption';
+        radio.value = club;
+        if (index === 0) radio.checked = true;
+
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode(club));
+        clubOptionsContainer.appendChild(label);
+      });
+    }
+
+    function handleAddClub() {
+      const selectedRadio = document.querySelector('input[name="clubOption"]:checked');
+      if (!selectedRadio) {
+        message2.textContent = '部活を選択してください。';
+        return;
+      }
+
+      const selectedClub = selectedRadio.value;
+      const curPlayer = players[currentStepIndex];
+      curPlayer.club = selectedClub;
+
+      if (selectedClub === '管弦楽・軽音楽部・ジャズオケ部') {
+        curPlayer.affection = Math.min(curPlayer.maxAffection, curPlayer.affection + 10);
+      } else if (selectedClub === 'クイズ研究会') {
+        curPlayer.study += 10;
+      }
+
+      currentStepIndex++;
+
+      if (currentStepIndex < players.length) {
+        showClubInputForm();
+      } else {
+        step2.classList.add('hidden');
+        step3.classList.remove('hidden');
+        playerTurnIndex = 0;
+        globalTurnCount = 2;
+        isRolling = false;
+        
+        setButtonsState(!players[playerTurnIndex].isGoal);
+
+        diceResultMsg.textContent = '【第2ターン開始】部活の効果が有効になりました！';
+        updateDiceTurnView();
+        renderResultList();
+      }
+    }
+
+    // --- ポイント手動変更イベント ---
+    affectionPlusBtn.addEventListener('click', () => adjustPoint('affection', 5));
+    affectionMinusBtn.addEventListener('click', () => adjustPoint('affection', -5));
+    studyPlusBtn.addEventListener('click', () => adjustPoint('study', 5));
+    studyMinusBtn.addEventListener('click', () => adjustPoint('study', -5));
+
+    function adjustPoint(type, amount) {
+      if (players.length === 0) return;
+      const p = players[playerTurnIndex];
+      if (type === 'affection') {
+        p.affection = Math.min(p.maxAffection, Math.max(0, p.affection + amount));
+      } else {
+        p.study = Math.max(0, p.study + amount);
+      }
+      updateDiceTurnView();
+      renderResultList();
+    }
+
+    // --- STEP 3: サイコロ & 部活効果計算 ---
+    rollBtn.addEventListener('click', () => {
+      if (isRolling) return;
+      isRolling = true;
+      rollBtn.disabled = true;
+
+      let count = 0;
+      const interval = setInterval(() => {
+        diceBox.textContent = Math.floor(Math.random() * 6) + 1;
+        count++;
+        if (count > 10) {
+          clearInterval(interval);
+          
+          const diceValue = Math.floor(Math.random() * 6) + 1;
+          diceBox.textContent = diceValue;
+          
+          const p = players[playerTurnIndex];
+          
+          let extraSteps = 0;
+          let buffLogMsg = [];
+
+          if (globalTurnCount >= 2 && p.club !== '未所属（退部済）') {
+            if (p.club === 'サッカー部' && diceValue === 1) {
+              extraSteps += 2;
+              buffLogMsg.push('サッカー部効果: 追加2マス進む');
+            } else if (p.club === '野球部' && diceValue === 6) {
+              extraSteps += 2;
+              buffLogMsg.push('野球部効果: 追加2マス進む');
+            } else if (p.club === 'ワンゲル部' && (diceValue === 3 || diceValue === 4)) {
+              extraSteps += 1;
+              buffLogMsg.push('ワンゲル部効果: 追加1マス進む');
+            } else if (p.club === '管弦楽・軽音楽部・ジャズオケ部' && diceValue % 2 === 0) {
+              p.affection = Math.min(p.maxAffection, p.affection + 5);
+              buffLogMsg.push('管弦楽等効果: 偶数の目で好感度+5');
+            } else if (p.club === '合唱部') {
+              p.affection = Math.min(p.maxAffection, p.affection + globalTurnCount);
+              p.study += globalTurnCount;
+              buffLogMsg.push(`合唱部効果: 好感度・学力+${globalTurnCount}`);
+            }
+          }
+
+          const totalSteps = diceValue + extraSteps;
+          let resultHTML = `${p.name} さんの出目は「 ${diceValue} 」！<br>`;
+          if (buffLogMsg.length > 0) {
+            resultHTML += `<span style="color: #28a745;">【${buffLogMsg.join(' / ')}】</span><br>`;
+          }
+          resultHTML += `<strong>${totalSteps} マス</strong> 進みます！`;
+          diceResultMsg.innerHTML = resultHTML;
+
+          updateDiceTurnView();
+          renderResultList();
+
+          endTurnBtn.disabled = false;
+
+          setTimeout(() => {
+            if (globalTurnCount >= 2 && p.club === 'クイズ研究会') {
+              showQuizModal(p);
+            }
+          }, 500);
+        }
+      }, 50);
+    });
+
+    // ゴールボタン処理
+    goalBtn.addEventListener('click', () => {
+      const p = players[playerTurnIndex];
+      p.isGoal = true;
+      goalCounter++;
+      p.goalRank = goalCounter;
+
+      let goalMsg = `🎉 ${p.name} さんが ${p.goalRank} 番目でゴールしました！ 🎉`;
+
+      if (p.club === '合唱部' && p.affection <= 50) {
+        p.study += 50;
+        goalMsg += `<br><span style="color: #28a745; font-size: 1rem;">【合唱部ゴール効果】好感度50以下のため 学力+50！</span>`;
+      }
+
+      diceResultMsg.innerHTML = `<span style="color: #d97706; font-size: 1.2rem;">${goalMsg}</span>`;
+      
+      updateDiceTurnView();
+      renderResultList();
+      goalBtn.disabled = true;
+      rollBtn.disabled = true;
+      endTurnBtn.disabled = false;
+    });
+
+    // 退部ボタン処理
+    leaveClubBtn.addEventListener('click', () => {
+      const p = players[playerTurnIndex];
+      if (p.club === '未所属（退部済）' || p.club === '未所属') {
+        diceResultMsg.innerHTML = `<span style="color: #d9534f;">${p.name} さんは現在部活に所属していません。</span>`;
+        return;
+      }
+      
+      const oldClub = p.club;
+      p.club = '未所属（退部済）';
+
+      diceResultMsg.innerHTML = `<span style="color: #721c24;">【退部】${p.name} さんは ${oldClub} を退部しました。（以降、部活効果は発生しません）</span>`;
+
+      updateDiceTurnView();
+      renderResultList();
+    });
+
+    // 留年ボタン処理
+    repeatBtn.addEventListener('click', () => {
+      const p = players[playerTurnIndex];
+      p.maxAffection = Math.max(0, p.maxAffection - 25);
+      
+      if (p.affection > p.maxAffection) {
+        p.affection = p.maxAffection;
+      }
+
+      diceResultMsg.innerHTML = `<span style="color: #145a32;">【留年】${p.name} さんの好感度上限が25下がりました！（上限: ${p.maxAffection}）</span>`;
+
+      updateDiceTurnView();
+      renderResultList();
+    });
+
+    // ターン終了ボタン処理
+    endTurnBtn.addEventListener('click', () => {
+      const allFinished = players.every(p => p.isGoal);
+      if (allFinished) {
+        calculateFinalResults();
+        return;
+      }
+
+      let searchCount = 0;
+      do {
+        playerTurnIndex++;
+        if (playerTurnIndex >= players.length) {
+          if (globalTurnCount === 1) {
+            startClubSelection();
+            return;
+          }
+          playerTurnIndex = 0;
+          globalTurnCount++;
+        }
+        searchCount++;
+      } while (players[playerTurnIndex].isGoal && searchCount <= players.length);
+
+      diceBox.textContent = '?';
+      diceResultMsg.textContent = '';
+      updateDiceTurnView();
+      
+      isRolling = false;
+      setButtonsState(!players[playerTurnIndex].isGoal);
+    });
+
+    function showQuizModal(player) {
+      const qObj = quizQuestions[Math.floor(Math.random() * quizQuestions.length)];
+      quizQuestionText.textContent = `${player.name} への超難問: ${qObj.q}`;
+      quizOptionsContainer.innerHTML = '';
+
+      qObj.options.forEach((optText, optIdx) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'quiz-option-btn';
+        btn.textContent = `${optIdx + 1}. ${optText}`;
+        btn.onclick = () => {
+          quizModal.classList.add('hidden');
+          if (optIdx === qObj.answer) {
+            player.study += 10;
+            player.affection = Math.min(player.maxAffection, player.affection + 10);
+            diceResultMsg.innerHTML += `<br><span style="color: #28a745;">【超難問見事正解！】学力+10 / 好感度+10</span>`;
+          } else {
+            player.study = Math.max(0, player.study - 10);
+            player.affection = 0;
+            diceResultMsg.innerHTML += `<br><span style="color: #d9534f;">【不正解...】学力-10 / 好感度0</span>`;
+          }
+          updateDiceTurnView();
+          renderResultList();
+          endTurnBtn.disabled = false;
+        };
+        quizOptionsContainer.appendChild(btn);
+      });
+
+      quizModal.classList.remove('hidden');
+    }
+
+    function calculateFinalResults() {
+      setButtonsState(false);
+      endTurnBtn.disabled = true;
+
+      players.forEach(p => {
+        let bonus = 0;
+        if (p.goalRank === 1) bonus = 50;
+        else if (p.goalRank === 2) bonus = 30;
+        else if (p.goalRank === 3) bonus = 10;
+        p.studyBonus = bonus;
+        p.finalStudy = p.study + bonus;
+      });
+
+      let maxScore = -1;
+      players.forEach(p => {
+        if (p.finalStudy > maxScore) {
+          maxScore = p.finalStudy;
+        }
+      });
+
+      const winners = players.filter(p => p.finalStudy === maxScore);
+      const winnerNames = winners.map(w => w.name).join(' さん、');
+
+      winnerNameText.textContent = `優勝: ${winnerNames} さん！`;
+
+      const sortedPlayers = [...players].sort((a, b) => b.finalStudy - a.finalStudy);
+      finalScoreList.innerHTML = '';
+      sortedPlayers.forEach(p => {
+        const item = document.createElement('div');
+        item.className = 'final-score-item';
+        const bonusText = p.studyBonus > 0 ? ` (+${p.studyBonus})` : '';
+        item.innerHTML = `
+          <span><strong>${p.name}</strong> (${p.goalRank}位ゴール)</span>
+          <span>学力: <strong>${p.finalStudy}</strong> pt<small style="color:#6c757d;">${bonusText}</small></span>
+        `;
+        finalScoreList.appendChild(item);
+      });
+
+      resultModal.classList.remove('hidden');
+    }
+
+    closeResultBtn.addEventListener('click', () => {
+      resultModal.classList.add('hidden');
+      diceResultMsg.innerHTML = `<span style="color: #28a745; font-size: 1.2rem;">全プレイヤーがゴールしました！ゲーム終了です！</span>`;
+    });
+
+    function setButtonsState(enabled) {
+      rollBtn.disabled = !enabled;
+      goalBtn.disabled = !enabled;
+      leaveClubBtn.disabled = !enabled;
+      repeatBtn.disabled = !enabled;
+      endTurnBtn.disabled = true;
+    }
+
+    function updateDiceTurnView() {
+      const p = players[playerTurnIndex];
+      globalTurnBadge.textContent = `第 ${globalTurnCount} ターン`;
+      dicePlayerName.textContent = p.name;
+      dicePlayerClub.textContent = p.club;
+
+      affectionVal.textContent = `${p.affection} / ${p.maxAffection}`;
+      const affectionPct = p.maxAffection > 0 ? (p.affection / p.maxAffection) * 100 : 0;
+      affectionBar.style.width = `${affectionPct}%`;
+
+      studyVal.textContent = `${p.study}`;
+      const studyPct = Math.min(100, (p.study / 100) * 100);
+      studyBar.style.width = `${studyPct}%`;
+    }
+
+    function renderResultList() {
+      resultList.innerHTML = '';
+      players.forEach((p) => {
+        const li = document.createElement('li');
+        const goalText = p.isGoal ? ` <span style="color: #d97706;">[${p.goalRank}位GOAL!]</span>` : '';
+        li.innerHTML = `${p.name}（${p.club}）${goalText} - 好感度: ${p.affection}/${p.maxAffection} / 学力: ${p.study}`;
+        resultList.appendChild(li);
+      });
+    }
+
+    restartBtn.addEventListener('click', () => {
+      players.length = 0;
+      playerTurnIndex = 0;
+      globalTurnCount = 1;
+      goalCounter = 0;
+      isRolling = false;
+      inputPlayer.value = '';
+      message1.textContent = '';
+      message2.textContent = '';
+      diceResultMsg.textContent = '';
+      diceBox.textContent = '?';
+      renderList();
+      step3.classList.add('hidden');
+      step2.classList.add('hidden');
+      step1.classList.remove('hidden');
+    });
+  </script>
+
+</body>
+</html>
